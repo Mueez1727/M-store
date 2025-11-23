@@ -9,17 +9,17 @@ export default function SalesManagementSystem() {
   const [purchases, setPurchases] = useState({});
   const [sales, setSales] = useState({});
   const [newPurchaseRow, setNewPurchaseRow] = useState({ itemName: '', quantity: '', price: '', purchasedFrom: '' });
-  const [newSaleRow, setNewSaleRow] = useState({ itemName: '', quantity: '', price: '', soldTo: '' });
+  const [newSaleRow, setNewSaleRow] = useState({ itemName: '', quantity: '', price: '', soldTo: '', recovery: '' });
   const [addingRowDate, setAddingRowDate] = useState(null);
 
-  // Initialize data from storage
+  // Initialize data from localStorage
   useEffect(() => {
-    const loadData = async () => {
+    const loadData = () => {
       try {
-        const savedPurchases = await window.storage?.get('purchases');
-        const savedSales = await window.storage?.get('sales');
-        if (savedPurchases) setPurchases(JSON.parse(savedPurchases.value || '{}'));
-        if (savedSales) setSales(JSON.parse(savedSales.value || '{}'));
+        const savedPurchases = localStorage.getItem('purchases');
+        const savedSales = localStorage.getItem('sales');
+        if (savedPurchases) setPurchases(JSON.parse(savedPurchases));
+        if (savedSales) setSales(JSON.parse(savedSales));
       } catch (e) {
         console.log('No saved data');
       }
@@ -27,18 +27,13 @@ export default function SalesManagementSystem() {
     loadData();
   }, []);
 
-  // Save data to storage
+  // Save data to localStorage
   useEffect(() => {
-    const saveData = async () => {
-      try {
-        await window.storage?.set('purchases', JSON.stringify(purchases));
-        await window.storage?.set('sales', JSON.stringify(sales));
-      } catch (e) {
-        console.log('Failed to save');
-      }
-    };
-    if (Object.keys(purchases).length > 0 || Object.keys(sales).length > 0) {
-      saveData();
+    try {
+      localStorage.setItem('purchases', JSON.stringify(purchases));
+      localStorage.setItem('sales', JSON.stringify(sales));
+    } catch (e) {
+      console.log('Failed to save');
     }
   }, [purchases, sales]);
 
@@ -68,7 +63,7 @@ export default function SalesManagementSystem() {
     if (newPurchaseRow.itemName && newPurchaseRow.quantity && newPurchaseRow.price) {
       setPurchases(prev => ({
         ...prev,
-        [dateKey]: [...(prev[dateKey] || []), newPurchaseRow]
+        [dateKey]: [...(prev[dateKey] || []), { ...newPurchaseRow, date: dateKey }]
       }));
       setNewPurchaseRow({ itemName: '', quantity: '', price: '', purchasedFrom: '' });
       setAddingRowDate(null);
@@ -79,9 +74,9 @@ export default function SalesManagementSystem() {
     if (newSaleRow.itemName && newSaleRow.quantity && newSaleRow.price) {
       setSales(prev => ({
         ...prev,
-        [dateKey]: [...(prev[dateKey] || []), newSaleRow]
+        [dateKey]: [...(prev[dateKey] || []), { ...newSaleRow, date: dateKey }]
       }));
-      setNewSaleRow({ itemName: '', quantity: '', price: '', soldTo: '' });
+      setNewSaleRow({ itemName: '', quantity: '', price: '', soldTo: '', recovery: '' });
       setAddingRowDate(null);
     }
   };
@@ -180,13 +175,14 @@ export default function SalesManagementSystem() {
   const generateCSV = (data, dataType) => {
     const headers = dataType === 'purchase' 
       ? ['Item Name', 'Quantity', 'Price (Rs)', 'Purchased From', 'Date']
-      : ['Item Name', 'Quantity', 'Price (Rs)', 'Sold To', 'Date'];
+      : ['Item Name', 'Quantity', 'Price (Rs)', 'Sold To', 'Recovery (Rs)', 'Date'];
     
     const rows = data.map(item => [
       item.itemName,
       item.quantity,
       item.price,
       item.purchasedFrom || item.soldTo || '',
+      item.recovery || '',
       item.date || ''
     ]);
 
@@ -208,17 +204,52 @@ export default function SalesManagementSystem() {
     return date.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
   };
 
+  const aggregatePurchasingDetails = () => {
+    const details = {};
+    Object.entries(purchases).forEach(([date, items]) => {
+      items.forEach(item => {
+        const supplier = item.purchasedFrom || 'Unknown';
+        if (!details[supplier]) {
+          details[supplier] = { totalQuantity: 0, totalAmount: 0, items: [] };
+        }
+        details[supplier].totalQuantity += parseInt(item.quantity) || 0;
+        details[supplier].totalAmount += parseFloat(item.price) || 0;
+        details[supplier].items.push({ ...item, date });
+      });
+    });
+    return details;
+  };
+
+  const aggregateSellingDetails = () => {
+    const details = {};
+    Object.entries(sales).forEach(([date, items]) => {
+      items.forEach(item => {
+        const buyer = item.soldTo || 'Unknown';
+        if (!details[buyer]) {
+          details[buyer] = { totalQuantity: 0, totalAmount: 0, totalRecovery: 0, items: [] };
+        }
+        details[buyer].totalQuantity += parseInt(item.quantity) || 0;
+        details[buyer].totalAmount += parseFloat(item.price) || 0;
+        details[buyer].totalRecovery += parseFloat(item.recovery) || 0;
+        details[buyer].items.push({ ...item, date });
+      });
+    });
+    return details;
+  };
+
   const bgColor = darkMode ? 'bg-gray-900' : 'bg-gray-50';
   const textColor = darkMode ? 'text-gray-100' : 'text-gray-900';
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
   const borderColor = darkMode ? 'border-gray-700' : 'border-gray-200';
 
   // Accordion component for dates
-  const DateAccordion = ({ dateKey, label, dataType }) => {
+  const DateAccordion = React.memo(({ dateKey, label, dataType }) => {
     const isExpanded = expandedDays[dateKey];
     const data = dataType === 'purchase' ? purchases[dateKey] : sales[dateKey];
     const isToday = dateKey === today;
     const showAddRow = addingRowDate === dateKey;
+    const currentNewRow = dataType === 'purchase' ? newPurchaseRow : newSaleRow;
+    const setCurrentNewRow = dataType === 'purchase' ? setNewPurchaseRow : setNewSaleRow;
 
     return (
       <div className={`border ${borderColor} rounded-lg mb-3 overflow-hidden`}>
@@ -241,6 +272,7 @@ export default function SalesManagementSystem() {
                       <th className="px-3 py-2 text-right">Quantity</th>
                       <th className="px-3 py-2 text-right">Price (Rs)</th>
                       <th className="px-3 py-2 text-left">{dataType === 'purchase' ? 'Purchased From' : 'Sold To'}</th>
+                      {dataType === 'sale' && <th className="px-3 py-2 text-right">Recovery (Rs)</th>}
                       {isToday && <th className="px-3 py-2 text-center">Action</th>}
                     </tr>
                   </thead>
@@ -251,6 +283,7 @@ export default function SalesManagementSystem() {
                         <td className="px-3 py-2 text-right">{item.quantity}</td>
                         <td className="px-3 py-2 text-right">Rs {parseFloat(item.price).toFixed(2)}</td>
                         <td className="px-3 py-2">{item.purchasedFrom || item.soldTo || '-'}</td>
+                        {dataType === 'sale' && <td className="px-3 py-2 text-right">Rs {parseFloat(item.recovery || 0).toFixed(2)}</td>}
                         {isToday && (
                           <td className="px-3 py-2 text-center">
                             <button onClick={() => dataType === 'purchase' ? deletePurchase(dateKey, idx) : deleteSale(dateKey, idx)} className="text-red-500 hover:text-red-700">
@@ -283,43 +316,43 @@ export default function SalesManagementSystem() {
                       <input
                         type="text"
                         placeholder="Item Name"
-                        value={dataType === 'purchase' ? newPurchaseRow.itemName : newSaleRow.itemName}
-                        onChange={(e) => dataType === 'purchase' 
-                          ? setNewPurchaseRow({...newPurchaseRow, itemName: e.target.value})
-                          : setNewSaleRow({...newSaleRow, itemName: e.target.value})
-                        }
+                        value={currentNewRow.itemName}
+                        onChange={(e) => setCurrentNewRow({...currentNewRow, itemName: e.target.value})}
                         className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
                       />
                       <input
                         type="number"
                         placeholder="Quantity"
-                        value={dataType === 'purchase' ? newPurchaseRow.quantity : newSaleRow.quantity}
-                        onChange={(e) => dataType === 'purchase' 
-                          ? setNewPurchaseRow({...newPurchaseRow, quantity: e.target.value})
-                          : setNewSaleRow({...newSaleRow, quantity: e.target.value})
-                        }
+                        value={currentNewRow.quantity}
+                        onChange={(e) => setCurrentNewRow({...currentNewRow, quantity: e.target.value})}
                         className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
                       />
                       <input
                         type="number"
                         placeholder="Price (Rs)"
-                        value={dataType === 'purchase' ? newPurchaseRow.price : newSaleRow.price}
-                        onChange={(e) => dataType === 'purchase' 
-                          ? setNewPurchaseRow({...newPurchaseRow, price: e.target.value})
-                          : setNewSaleRow({...newSaleRow, price: e.target.value})
-                        }
+                        value={currentNewRow.price}
+                        onChange={(e) => setCurrentNewRow({...currentNewRow, price: e.target.value})}
                         className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
                       />
                       <input
                         type="text"
                         placeholder={dataType === 'purchase' ? 'Purchased From' : 'Sold To'}
-                        value={dataType === 'purchase' ? newPurchaseRow.purchasedFrom : newSaleRow.soldTo}
+                        value={dataType === 'purchase' ? currentNewRow.purchasedFrom : currentNewRow.soldTo}
                         onChange={(e) => dataType === 'purchase' 
-                          ? setNewPurchaseRow({...newPurchaseRow, purchasedFrom: e.target.value})
-                          : setNewSaleRow({...newSaleRow, soldTo: e.target.value})
+                          ? setCurrentNewRow({...currentNewRow, purchasedFrom: e.target.value})
+                          : setCurrentNewRow({...currentNewRow, soldTo: e.target.value})
                         }
                         className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
                       />
+                      {dataType === 'sale' && (
+                        <input
+                          type="number"
+                          placeholder="Recovery (Rs)"
+                          value={currentNewRow.recovery || ''}
+                          onChange={(e) => setCurrentNewRow({...currentNewRow, recovery: e.target.value})}
+                          className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
+                        />
+                      )}
                       <button
                         onClick={() => dataType === 'purchase' ? addPurchaseRow(dateKey) : addSaleRow(dateKey)}
                         className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center justify-center gap-2"
@@ -341,7 +374,7 @@ export default function SalesManagementSystem() {
         )}
       </div>
     );
-  };
+  });
 
   return (
     <div className={`min-h-screen ${bgColor} ${textColor}`}>
@@ -360,7 +393,7 @@ export default function SalesManagementSystem() {
         {/* Navigation Boxes */}
         {currentPage === 'dashboard' && (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div onClick={() => { setCurrentPage('purchasing'); setSelectedMonth(null); setExpandedDays({}); }} className={`${cardBg} p-8 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition transform hover:scale-105 border ${borderColor}`}>
                 <div className="flex items-center justify-center h-32">
                   <div className="text-center">
@@ -374,6 +407,14 @@ export default function SalesManagementSystem() {
                   <div className="text-center">
                     <TrendingUp size={48} className="mx-auto mb-4 text-green-500" />
                     <h2 className="text-2xl font-bold">Selling</h2>
+                  </div>
+                </div>
+              </div>
+              <div onClick={() => setCurrentPage('details')} className={`${cardBg} p-8 rounded-lg shadow-lg cursor-pointer hover:shadow-xl transition transform hover:scale-105 border ${borderColor}`}>
+                <div className="flex items-center justify-center h-32">
+                  <div className="text-center">
+                    <TrendingUp size={48} className="mx-auto mb-4 text-purple-500" />
+                    <h2 className="text-2xl font-bold">Purchasing & Selling Details</h2>
                   </div>
                 </div>
               </div>
@@ -421,20 +462,28 @@ export default function SalesManagementSystem() {
         {/* Purchasing Page */}
         {currentPage === 'purchasing' && (
           <>
-            <button onClick={() => setCurrentPage('dashboard')} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
+            <button onClick={() => { setCurrentPage('dashboard'); setSelectedMonth(null); }} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
               <ChevronLeft size={20} /> Back to Dashboard
             </button>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {months.map((month, idx) => (
-                <div key={idx} onClick={() => setSelectedMonth(idx)} className={`${selectedMonth === idx ? 'ring-2 ring-blue-500' : ''} ${cardBg} p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition border ${borderColor}`}>
-                  <p className="font-semibold text-center">{month}</p>
-                </div>
-              ))}
-            </div>
+            
+            {selectedMonth === null && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {months.map((month, idx) => (
+                  <div key={idx} onClick={() => setSelectedMonth(idx)} className={`${cardBg} p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition border ${borderColor}`}>
+                    <p className="font-semibold text-center">{month}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {selectedMonth !== null && (
               <div className={`${cardBg} rounded-lg shadow-lg p-6 border ${borderColor}`}>
-                <h3 className="text-2xl font-bold mb-6">{months[selectedMonth]} - Purchasing Details</h3>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold">{months[selectedMonth]} - Purchasing Details</h3>
+                  <button onClick={() => setSelectedMonth(null)} className="flex items-center gap-2 text-blue-500 hover:text-blue-600">
+                    <ChevronLeft size={20} /> Back to Months
+                  </button>
+                </div>
                 
                 {Array.from({ length: getDaysInMonth(selectedMonth) }).map((_, dayIdx) => {
                   const dateKey = getDateString(selectedMonth, dayIdx + 1);
@@ -460,20 +509,28 @@ export default function SalesManagementSystem() {
         {/* Selling Page */}
         {currentPage === 'selling' && (
           <>
-            <button onClick={() => setCurrentPage('dashboard')} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
+            <button onClick={() => { setCurrentPage('dashboard'); setSelectedMonth(null); }} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
               <ChevronLeft size={20} /> Back to Dashboard
             </button>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-              {months.map((month, idx) => (
-                <div key={idx} onClick={() => setSelectedMonth(idx)} className={`${selectedMonth === idx ? 'ring-2 ring-green-500' : ''} ${cardBg} p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition border ${borderColor}`}>
-                  <p className="font-semibold text-center">{month}</p>
-                </div>
-              ))}
-            </div>
+            
+            {selectedMonth === null && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {months.map((month, idx) => (
+                  <div key={idx} onClick={() => setSelectedMonth(idx)} className={`${cardBg} p-4 rounded-lg shadow-md cursor-pointer hover:shadow-lg transition border ${borderColor}`}>
+                    <p className="font-semibold text-center">{month}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {selectedMonth !== null && (
               <div className={`${cardBg} rounded-lg shadow-lg p-6 border ${borderColor}`}>
-                <h3 className="text-2xl font-bold mb-6">{months[selectedMonth]} - Selling Details</h3>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-bold">{months[selectedMonth]} - Selling Details</h3>
+                  <button onClick={() => setSelectedMonth(null)} className="flex items-center gap-2 text-blue-500 hover:text-blue-600">
+                    <ChevronLeft size={20} /> Back to Months
+                  </button>
+                </div>
                 
                 {Array.from({ length: getDaysInMonth(selectedMonth) }).map((_, dayIdx) => {
                   const dateKey = getDateString(selectedMonth, dayIdx + 1);
@@ -493,6 +550,91 @@ export default function SalesManagementSystem() {
                 </button>
               </div>
             )}
+          </>
+        )}
+
+        {/* Purchasing & Selling Details Page */}
+        {currentPage === 'details' && (
+          <>
+            <button onClick={() => setCurrentPage('dashboard')} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
+              <ChevronLeft size={20} /> Back to Dashboard
+            </button>
+
+            {/* Purchasing Details */}
+            <div className={`${cardBg} rounded-lg shadow-lg p-6 border ${borderColor} mb-8`}>
+              <h3 className="text-2xl font-bold mb-6">Purchasing Details by Supplier</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'} border-b ${borderColor}`}>
+                      <th className="px-4 py-3 text-left">Supplier Name</th>
+                      <th className="px-4 py-3 text-right">Total Quantity</th>
+                      <th className="px-4 py-3 text-right">Total Amount (Rs)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(aggregatePurchasingDetails()).map(([supplier, data]) => (
+                      <tr key={supplier} className={`border-b ${borderColor} hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                        <td className="px-4 py-3 font-semibold">{supplier}</td>
+                        <td className="px-4 py-3 text-right">{data.totalQuantity}</td>
+                        <td className="px-4 py-3 text-right">Rs {data.totalAmount.toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {Object.keys(aggregatePurchasingDetails()).length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No purchasing data available</p>
+                )}
+              </div>
+            </div>
+
+            {/* Selling Details */}
+            <div className={`${cardBg} rounded-lg shadow-lg p-6 border ${borderColor}`}>
+              <h3 className="text-2xl font-bold mb-6">Selling Details by Buyer</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'} border-b ${borderColor}`}>
+                      <th className="px-4 py-3 text-left">Buyer Name</th>
+                      <th className="px-4 py-3 text-right">Total Quantity</th>
+                      <th className="px-4 py-3 text-right">Total Amount (Rs)</th>
+                      <th className="px-4 py-3 text-right">Total Recovery (Rs)</th>
+                      <th className="px-4 py-3 text-right">Balance (Rs)</th>
+                      <th className="px-4 py-3 text-right">Profit (Rs)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(aggregateSellingDetails()).map(([buyer, data]) => {
+                      const balance = data.totalAmount - data.totalRecovery;
+                      const buyerItems = data.items;
+                      let totalPurchaseCost = 0;
+                      buyerItems.forEach(saleItem => {
+                        Object.values(purchases).flat().forEach(purchaseItem => {
+                          if (purchaseItem.itemName === saleItem.itemName) {
+                            totalPurchaseCost += parseFloat(purchaseItem.price) || 0;
+                          }
+                        });
+                      });
+                      const profit = data.totalAmount - totalPurchaseCost;
+                      
+                      return (
+                        <tr key={buyer} className={`border-b ${borderColor} hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                          <td className="px-4 py-3 font-semibold">{buyer}</td>
+                          <td className="px-4 py-3 text-right">{data.totalQuantity}</td>
+                          <td className="px-4 py-3 text-right">Rs {data.totalAmount.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-green-600">Rs {data.totalRecovery.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-red-600">Rs {balance.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right font-bold text-green-500">Rs {profit.toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {Object.keys(aggregateSellingDetails()).length === 0 && (
+                  <p className="text-gray-500 text-center py-8">No selling data available</p>
+                )}
+              </div>
+            </div>
           </>
         )}
       </div>
