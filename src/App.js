@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Moon, Sun, ShoppingCart, TrendingUp, Download, Plus, Trash2, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import './App.css';
 
 export default function SalesManagementSystem() {
   const [darkMode, setDarkMode] = useState(false);
@@ -52,14 +53,14 @@ export default function SalesManagementSystem() {
     return `${currentYear}-${monthStr}-${dayStr}`;
   };
 
-  const toggleDay = (dateKey) => {
+  const toggleDay = useCallback((dateKey) => {
     setExpandedDays(prev => ({
       ...prev,
       [dateKey]: !prev[dateKey]
     }));
-  };
+  }, []);
 
-  const addPurchaseRow = (dateKey) => {
+  const addPurchaseRow = useCallback((dateKey) => {
     if (newPurchaseRow.itemName && newPurchaseRow.quantity && newPurchaseRow.price) {
       setPurchases(prev => ({
         ...prev,
@@ -68,9 +69,9 @@ export default function SalesManagementSystem() {
       setNewPurchaseRow({ itemName: '', quantity: '', price: '', purchasedFrom: '' });
       setAddingRowDate(null);
     }
-  };
+  }, [newPurchaseRow]);
 
-  const addSaleRow = (dateKey) => {
+  const addSaleRow = useCallback((dateKey) => {
     if (newSaleRow.itemName && newSaleRow.quantity && newSaleRow.price) {
       setSales(prev => ({
         ...prev,
@@ -79,21 +80,21 @@ export default function SalesManagementSystem() {
       setNewSaleRow({ itemName: '', quantity: '', price: '', soldTo: '', recovery: '' });
       setAddingRowDate(null);
     }
-  };
+  }, [newSaleRow]);
 
-  const deletePurchase = (dateKey, index) => {
+  const deletePurchase = useCallback((dateKey, index) => {
     setPurchases(prev => ({
       ...prev,
       [dateKey]: prev[dateKey].filter((_, i) => i !== index)
     }));
-  };
+  }, []);
 
-  const deleteSale = (dateKey, index) => {
+  const deleteSale = useCallback((dateKey, index) => {
     setSales(prev => ({
       ...prev,
       [dateKey]: prev[dateKey].filter((_, i) => i !== index)
     }));
-  };
+  }, []);
 
   const calculateStats = (dataType, period) => {
     const data = dataType === 'purchase' ? purchases : sales;
@@ -242,14 +243,122 @@ export default function SalesManagementSystem() {
   const cardBg = darkMode ? 'bg-gray-800' : 'bg-white';
   const borderColor = darkMode ? 'border-gray-700' : 'border-gray-200';
 
-  // Accordion component for dates
+  // Add Form Component - Separate to prevent parent re-renders
+  const AddRowForm = React.memo(({ dataType, dateKey, onAdd, onCancel }) => {
+    const [formData, setFormData] = useState(
+      dataType === 'purchase' 
+        ? { itemName: '', quantity: '', price: '', purchasedFrom: '' }
+        : { itemName: '', quantity: '', price: '', soldTo: '', recovery: '' }
+    );
+
+    const handleSubmit = () => {
+      if (formData.itemName && formData.quantity && formData.price) {
+        onAdd(dateKey, formData);
+        setFormData(
+          dataType === 'purchase' 
+            ? { itemName: '', quantity: '', price: '', purchasedFrom: '' }
+            : { itemName: '', quantity: '', price: '', soldTo: '', recovery: '' }
+        );
+      }
+    };
+
+    return (
+      <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'} p-4 rounded-lg`}>
+        <h5 className="font-semibold mb-3">Add New {dataType === 'purchase' ? 'Purchase' : 'Sale'}</h5>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
+          <input
+            type="text"
+            placeholder="Item Name"
+            value={formData.itemName}
+            onChange={(e) => setFormData({...formData, itemName: e.target.value})}
+            className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
+          />
+          <input
+            type="number"
+            placeholder="Quantity"
+            value={formData.quantity}
+            onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+            className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
+          />
+          <input
+            type="number"
+            placeholder="Price (Rs)"
+            value={formData.price}
+            onChange={(e) => setFormData({...formData, price: e.target.value})}
+            className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
+          />
+          <input
+            type="text"
+            placeholder={dataType === 'purchase' ? 'Purchased From' : 'Sold To'}
+            value={dataType === 'purchase' ? formData.purchasedFrom : formData.soldTo}
+            onChange={(e) => dataType === 'purchase' 
+              ? setFormData({...formData, purchasedFrom: e.target.value})
+              : setFormData({...formData, soldTo: e.target.value})
+            }
+            className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
+          />
+          {dataType === 'sale' && (
+            <input
+              type="number"
+              placeholder="Recovery (Rs)"
+              value={formData.recovery || ''}
+              onChange={(e) => setFormData({...formData, recovery: e.target.value})}
+              className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
+            />
+          )}
+          <button
+            onClick={handleSubmit}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center justify-center gap-2"
+          >
+            <Plus size={18} /> Add
+          </button>
+        </div>
+        <button
+          onClick={onCancel}
+          className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  });
+
+  // Accordion component for dates - Memoized to prevent re-renders
   const DateAccordion = React.memo(({ dateKey, label, dataType }) => {
     const isExpanded = expandedDays[dateKey];
     const data = dataType === 'purchase' ? purchases[dateKey] : sales[dateKey];
     const isToday = dateKey === today;
     const showAddRow = addingRowDate === dateKey;
-    const currentNewRow = dataType === 'purchase' ? newPurchaseRow : newSaleRow;
-    const setCurrentNewRow = dataType === 'purchase' ? setNewPurchaseRow : setNewSaleRow;
+
+    const handleAddRow = useCallback((date, formData) => {
+      if (dataType === 'purchase') {
+        setPurchases(prev => ({
+          ...prev,
+          [date]: [...(prev[date] || []), { ...formData, date }]
+        }));
+      } else {
+        setSales(prev => ({
+          ...prev,
+          [date]: [...(prev[date] || []), { ...formData, date }]
+        }));
+      }
+      setAddingRowDate(null);
+    }, [dataType]);
+
+    // Prevent re-render when typing
+    if (!isExpanded) {
+      return (
+        <div className={`border ${borderColor} rounded-lg mb-3 overflow-hidden`}>
+          <button
+            onClick={() => toggleDay(dateKey)}
+            className={`w-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} p-4 flex justify-between items-center transition`}
+          >
+            <span className="font-semibold">{label} {isToday && <span className="text-xs ml-2 bg-green-500 text-white px-2 py-1 rounded">Today</span>}</span>
+            <ChevronDown size={20} />
+          </button>
+        </div>
+      );
+    }
 
     return (
       <div className={`border ${borderColor} rounded-lg mb-3 overflow-hidden`}>
@@ -310,69 +419,27 @@ export default function SalesManagementSystem() {
                     <Plus size={18} /> Add Row
                   </button>
                 ) : (
-                  <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'} p-4 rounded-lg`}>
-                    <h5 className="font-semibold mb-3">Add New {dataType === 'purchase' ? 'Purchase' : 'Sale'}</h5>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
-                      <input
-                        type="text"
-                        placeholder="Item Name"
-                        value={currentNewRow.itemName}
-                        onChange={(e) => setCurrentNewRow({...currentNewRow, itemName: e.target.value})}
-                        className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
-                      />
-                      <input
-                        type="number"
-                        placeholder="Quantity"
-                        value={currentNewRow.quantity}
-                        onChange={(e) => setCurrentNewRow({...currentNewRow, quantity: e.target.value})}
-                        className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
-                      />
-                      <input
-                        type="number"
-                        placeholder="Price (Rs)"
-                        value={currentNewRow.price}
-                        onChange={(e) => setCurrentNewRow({...currentNewRow, price: e.target.value})}
-                        className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
-                      />
-                      <input
-                        type="text"
-                        placeholder={dataType === 'purchase' ? 'Purchased From' : 'Sold To'}
-                        value={dataType === 'purchase' ? currentNewRow.purchasedFrom : currentNewRow.soldTo}
-                        onChange={(e) => dataType === 'purchase' 
-                          ? setCurrentNewRow({...currentNewRow, purchasedFrom: e.target.value})
-                          : setCurrentNewRow({...currentNewRow, soldTo: e.target.value})
-                        }
-                        className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
-                      />
-                      {dataType === 'sale' && (
-                        <input
-                          type="number"
-                          placeholder="Recovery (Rs)"
-                          value={currentNewRow.recovery || ''}
-                          onChange={(e) => setCurrentNewRow({...currentNewRow, recovery: e.target.value})}
-                          className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600' : 'bg-white'}`}
-                        />
-                      )}
-                      <button
-                        onClick={() => dataType === 'purchase' ? addPurchaseRow(dateKey) : addSaleRow(dateKey)}
-                        className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center justify-center gap-2"
-                      >
-                        <Plus size={18} /> Add
-                      </button>
-                    </div>
-                    <button
-                      onClick={() => setAddingRowDate(null)}
-                      className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  <AddRowForm
+                    dataType={dataType}
+                    dateKey={dateKey}
+                    onAdd={handleAddRow}
+                    onCancel={() => setAddingRowDate(null)}
+                  />
                 )}
               </>
             )}
           </div>
         )}
       </div>
+    );
+  }, (prevProps, nextProps) => {
+    // Custom comparison function - only re-render if these specific props change
+    return (
+      prevProps.dateKey === nextProps.dateKey &&
+      prevProps.label === nextProps.label &&
+      prevProps.dataType === nextProps.dataType &&
+      JSON.stringify(prevProps.expandedDays) === JSON.stringify(nextProps.expandedDays) &&
+      JSON.stringify(prevProps.data) === JSON.stringify(nextProps.data)
     );
   });
 
