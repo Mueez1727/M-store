@@ -9,8 +9,6 @@ export default function SalesManagementSystem() {
   const [expandedDays, setExpandedDays] = useState({});
   const [purchases, setPurchases] = useState({});
   const [sales, setSales] = useState({});
-  const [newPurchaseRow, setNewPurchaseRow] = useState({ itemName: '', quantity: '', price: '', purchasedFrom: '' });
-  const [newSaleRow, setNewSaleRow] = useState({ itemName: '', quantity: '', price: '', soldTo: '', recovery: '' });
   const [addingRowDate, setAddingRowDate] = useState(null);
 
   // Initialize data from localStorage
@@ -59,28 +57,6 @@ export default function SalesManagementSystem() {
       [dateKey]: !prev[dateKey]
     }));
   }, []);
-
-  const addPurchaseRow = useCallback((dateKey) => {
-    if (newPurchaseRow.itemName && newPurchaseRow.quantity && newPurchaseRow.price) {
-      setPurchases(prev => ({
-        ...prev,
-        [dateKey]: [...(prev[dateKey] || []), { ...newPurchaseRow, date: dateKey }]
-      }));
-      setNewPurchaseRow({ itemName: '', quantity: '', price: '', purchasedFrom: '' });
-      setAddingRowDate(null);
-    }
-  }, [newPurchaseRow]);
-
-  const addSaleRow = useCallback((dateKey) => {
-    if (newSaleRow.itemName && newSaleRow.quantity && newSaleRow.price) {
-      setSales(prev => ({
-        ...prev,
-        [dateKey]: [...(prev[dateKey] || []), { ...newSaleRow, date: dateKey }]
-      }));
-      setNewSaleRow({ itemName: '', quantity: '', price: '', soldTo: '', recovery: '' });
-      setAddingRowDate(null);
-    }
-  }, [newSaleRow]);
 
   const deletePurchase = useCallback((dateKey, index) => {
     setPurchases(prev => ({
