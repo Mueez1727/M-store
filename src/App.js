@@ -283,18 +283,19 @@ export default function SalesManagementSystem() {
             />
           )}
           <button
+          onClick={onCancel}
+          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-800 transition flex items-center justify-center gap-2"
+        >
+          Cancel
+        </button>
+          
+        </div>
+        <button
             onClick={handleSubmit}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center justify-center gap-2"
           >
             <Plus size={18} /> Add
           </button>
-        </div>
-        <button
-          onClick={onCancel}
-          className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
-        >
-          Cancel
-        </button>
       </div>
     );
   });
