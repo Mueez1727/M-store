@@ -106,12 +106,6 @@ export default function SalesManagementSystem() {
     return { amount: totalAmount, items: totalItems };
   };
 
-  const calculateProfit = (period) => {
-    const purchaseStats = calculateStats('purchase', period);
-    const saleStats = calculateStats('sale', period);
-    return saleStats.amount - purchaseStats.amount;
-  };
-
   const downloadExcel = (dataType, period) => {
     const data = dataType === 'purchase' ? purchases : sales;
     let filteredData = [];
