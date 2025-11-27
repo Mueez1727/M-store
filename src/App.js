@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Moon, Sun, ShoppingCart, TrendingUp, Download, Plus, Trash2, ChevronLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { ScrollToTop } from "./components";
 import './App.css';
 
 export default function SalesManagementSystem() {
@@ -426,7 +427,9 @@ export default function SalesManagementSystem() {
 
   return (
     <div className={`min-h-screen ${bgColor} ${textColor}`}>
-      {/* Navbar */}
+      <ScrollToTop trigger={currentPage} />
+
+      
       <nav className={`${cardBg} border-b ${borderColor} sticky top-0 z-50 shadow-md`}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold">M Store</h1>
