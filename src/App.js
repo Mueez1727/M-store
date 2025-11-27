@@ -150,10 +150,10 @@ export default function SalesManagementSystem() {
   };
 
   const generateCSV = (data, dataType) => {
-    const headers = dataType === 'purchase' 
+    const headers = dataType === 'purchase'
       ? ['Item Name', 'Quantity', 'Price (Rs)', 'Purchased From', 'Date']
       : ['Item Name', 'Quantity', 'Price (Rs)', 'Sold To', 'Recovery (Rs)', 'Date'];
-    
+
     const rows = data.map(item => [
       item.itemName,
       item.quantity,
@@ -222,7 +222,7 @@ export default function SalesManagementSystem() {
   // Add Form Component - Separate to prevent parent re-renders
   const AddRowForm = React.memo(({ dataType, dateKey, onAdd, onCancel }) => {
     const [formData, setFormData] = useState(
-      dataType === 'purchase' 
+      dataType === 'purchase'
         ? { itemName: '', quantity: '', price: '', purchasedFrom: '' }
         : { itemName: '', quantity: '', price: '', soldTo: '', recovery: '' }
     );
@@ -231,7 +231,7 @@ export default function SalesManagementSystem() {
       if (formData.itemName && formData.quantity && formData.price) {
         onAdd(dateKey, formData);
         setFormData(
-          dataType === 'purchase' 
+          dataType === 'purchase'
             ? { itemName: '', quantity: '', price: '', purchasedFrom: '' }
             : { itemName: '', quantity: '', price: '', soldTo: '', recovery: '' }
         );
@@ -240,63 +240,73 @@ export default function SalesManagementSystem() {
 
     return (
       <div className={`${darkMode ? 'bg-gray-700' : 'bg-gray-100'} p-4 rounded-lg`}>
-        <h5 className="font-semibold mb-3">Add New {dataType === 'purchase' ? 'Purchase' : 'Sale'}</h5>
+        <h5 className="font-semibold mb-3">
+          Add New {dataType === 'purchase' ? 'Purchase' : 'Sale'}
+        </h5>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-3">
           <input
             type="text"
             placeholder="Item Name"
             value={formData.itemName}
-            onChange={(e) => setFormData({...formData, itemName: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, itemName: e.target.value })}
             className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
           />
+
           <input
             type="number"
             placeholder="Quantity"
             value={formData.quantity}
-            onChange={(e) => setFormData({...formData, quantity: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
             className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
           />
+
           <input
             type="number"
             placeholder="Price (Rs)"
             value={formData.price}
-            onChange={(e) => setFormData({...formData, price: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, price: e.target.value })}
             className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
           />
+
           <input
             type="text"
             placeholder={dataType === 'purchase' ? 'Purchased From' : 'Sold To'}
             value={dataType === 'purchase' ? formData.purchasedFrom : formData.soldTo}
-            onChange={(e) => dataType === 'purchase' 
-              ? setFormData({...formData, purchasedFrom: e.target.value})
-              : setFormData({...formData, soldTo: e.target.value})
+            onChange={(e) =>
+              dataType === 'purchase'
+                ? setFormData({ ...formData, purchasedFrom: e.target.value })
+                : setFormData({ ...formData, soldTo: e.target.value })
             }
             className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
           />
+
           {dataType === 'sale' && (
             <input
               type="number"
               placeholder="Recovery (Rs)"
               value={formData.recovery || ''}
-              onChange={(e) => setFormData({...formData, recovery: e.target.value})}
+              onChange={(e) => setFormData({ ...formData, recovery: e.target.value })}
               className={`px-3 py-2 rounded border ${borderColor} ${darkMode ? 'bg-gray-600 text-white' : 'bg-white'}`}
             />
           )}
           <button
-          onClick={onCancel}
-          className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-800 transition flex items-center justify-center gap-2"
-        >
-          Cancel
-        </button>
-          
-        </div>
-        <button
-            onClick={handleSubmit}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center justify-center gap-2"
+            onClick={onCancel}
+            className="col-span-1 sm:col-span-2 bg-red-600 text-white px-5 py-2 rounded hover:bg-red-700 transition flex items-center justify-center gap-2 w-fit"
           >
-            <Plus size={18} /> Add
+            Cancel
           </button>
+        </div>
+
+        <button
+          onClick={handleSubmit}
+          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition flex items-center justify-center gap-2"
+        >
+          <Plus size={18} />
+          Add
+        </button>
       </div>
+
     );
   });
 
@@ -475,14 +485,42 @@ export default function SalesManagementSystem() {
                     <th className="px-4 py-2 text-right">Purchasing Items</th>
                     <th className="px-4 py-2 text-right">Selling (Rs)</th>
                     <th className="px-4 py-2 text-right">Selling Items</th>
-                    <th className="px-4 py-2 text-right">Profit (Rs)</th>
+                    <th className="px-4 py-2 text-right">Recovery (Rs)</th>
                   </tr>
                 </thead>
                 <tbody>
                   {['daily', 'weekly', 'monthly', 'overall'].map(period => {
                     const purchaseStats = calculateStats('purchase', period);
                     const saleStats = calculateStats('sale', period);
-                    const profit = calculateProfit(period);
+
+                    // Calculate total recovery for the period
+                    const data = sales;
+                    let filteredSales = [];
+                    if (period === 'daily') {
+                      filteredSales = data[today] || [];
+                    } else if (period === 'weekly') {
+                      const weekStart = new Date(currentDate);
+                      weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+                      for (let i = 0; i < 7; i++) {
+                        const date = new Date(weekStart);
+                        date.setDate(weekStart.getDate() + i);
+                        const dateStr = date.toISOString().split('T')[0];
+                        filteredSales = [...filteredSales, ...(data[dateStr] || [])];
+                      }
+                    } else if (period === 'monthly') {
+                      const monthKey = `${currentYear}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+                      Object.keys(data).forEach(date => {
+                        if (date.startsWith(monthKey)) {
+                          filteredSales = [...filteredSales, ...(data[date] || [])];
+                        }
+                      });
+                    } else {
+                      Object.values(data).forEach(dateData => {
+                        filteredSales = [...filteredSales, ...(dateData || [])];
+                      });
+                    }
+                    const totalRecovery = filteredSales.reduce((sum, item) => sum + (parseFloat(item.recovery) || 0), 0);
+
                     return (
                       <tr key={period} className={`border-b ${borderColor} hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                         <td className="px-4 py-2 font-semibold capitalize">{period}</td>
@@ -490,7 +528,7 @@ export default function SalesManagementSystem() {
                         <td className="px-4 py-2 text-right">{purchaseStats.items}</td>
                         <td className="px-4 py-2 text-right">Rs {saleStats.amount.toFixed(2)}</td>
                         <td className="px-4 py-2 text-right">{saleStats.items}</td>
-                        <td className="px-4 py-2 text-right font-bold text-green-500">Rs {profit.toFixed(2)}</td>
+                        <td className="px-4 py-2 text-right font-bold text-green-500">Rs {totalRecovery.toFixed(2)}</td>
                       </tr>
                     );
                   })}
@@ -509,7 +547,7 @@ export default function SalesManagementSystem() {
             <button onClick={() => { setCurrentPage('dashboard'); setSelectedMonth(null); }} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
               <ChevronLeft size={20} /> Back to Dashboard
             </button>
-            
+
             {selectedMonth === null && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {months.map((month, idx) => (
@@ -528,7 +566,7 @@ export default function SalesManagementSystem() {
                     <ChevronLeft size={20} /> Back to Months
                   </button>
                 </div>
-                
+
                 {Array.from({ length: getDaysInMonth(selectedMonth) }).map((_, dayIdx) => {
                   const dateKey = getDateString(selectedMonth, dayIdx + 1);
                   const dayLabel = formatDateDisplay(dateKey);
@@ -556,7 +594,7 @@ export default function SalesManagementSystem() {
             <button onClick={() => { setCurrentPage('dashboard'); setSelectedMonth(null); }} className="mb-6 flex items-center gap-2 text-blue-500 hover:text-blue-600">
               <ChevronLeft size={20} /> Back to Dashboard
             </button>
-            
+
             {selectedMonth === null && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                 {months.map((month, idx) => (
@@ -575,7 +613,7 @@ export default function SalesManagementSystem() {
                     <ChevronLeft size={20} /> Back to Months
                   </button>
                 </div>
-                
+
                 {Array.from({ length: getDaysInMonth(selectedMonth) }).map((_, dayIdx) => {
                   const dateKey = getDateString(selectedMonth, dayIdx + 1);
                   const dayLabel = formatDateDisplay(dateKey);
@@ -643,32 +681,20 @@ export default function SalesManagementSystem() {
                       <th className="px-4 py-3 text-right">Total Quantity</th>
                       <th className="px-4 py-3 text-right">Total Amount (Rs)</th>
                       <th className="px-4 py-3 text-right">Total Recovery (Rs)</th>
-                      <th className="px-4 py-3 text-right">Balance (Rs)</th>
-                      <th className="px-4 py-3 text-right">Profit (Rs)</th>
+                      <th className="px-4 py-3 text-right">Remaining (Rs)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.entries(aggregateSellingDetails()).map(([buyer, data]) => {
-                      const balance = data.totalAmount - data.totalRecovery;
-                      const buyerItems = data.items;
-                      let totalPurchaseCost = 0;
-                      buyerItems.forEach(saleItem => {
-                        Object.values(purchases).flat().forEach(purchaseItem => {
-                          if (purchaseItem.itemName === saleItem.itemName) {
-                            totalPurchaseCost += parseFloat(purchaseItem.price) || 0;
-                          }
-                        });
-                      });
-                      const profit = data.totalAmount - totalPurchaseCost;
-                      
+                      const remaining = data.totalAmount - data.totalRecovery;
+
                       return (
                         <tr key={buyer} className={`border-b ${borderColor} hover:${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                           <td className="px-4 py-3 font-semibold">{buyer}</td>
                           <td className="px-4 py-3 text-right">{data.totalQuantity}</td>
                           <td className="px-4 py-3 text-right">Rs {data.totalAmount.toFixed(2)}</td>
                           <td className="px-4 py-3 text-right text-green-600">Rs {data.totalRecovery.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right text-red-600">Rs {balance.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-right font-bold text-green-500">Rs {profit.toFixed(2)}</td>
+                          <td className="px-4 py-3 text-right text-red-600 font-bold">Rs {remaining.toFixed(2)}</td>
                         </tr>
                       );
                     })}
